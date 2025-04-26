@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:soft/screens/mooddetection.dart';
 import 'package:soft/screens/taskcreation.dart';
 
+import 'notes_home.dart';
+
 class HomeView extends StatefulWidget {
   final String emotion;
   const HomeView({super.key, required this.emotion});
@@ -151,27 +153,43 @@ class _HomeViewState extends State<HomeView> {
     }
   }
   Drawer customDrawer() => Drawer(
-      child: ListView(
-          children: <Widget>[
-            DrawerHeader(child: Text('Navigation Sidebar')),
-            ListTile(
-              title: TextButton(onPressed: (){
-                Navigator.push(context, MaterialPageRoute(builder: (context)=>MoodDetector()));
-              }, child: Text("Current Mood")),
-            ),
-            ListTile(
-              title: TextButton(onPressed: (){
-                Navigator.push(context, MaterialPageRoute(builder: (context)=>HomeView(emotion: "Normal")));
-              }, child: Text("Dashboard")),
-            ),
-            ListTile(
-              title: Text('ini listnya'),
-            ),
-            ListTile(
-              title: Text('ini listnya'),
-            )
-          ]
-      )
+    child: ListView(
+      children: <Widget>[
+        DrawerHeader(child: Text('Navigation Sidebar')),
+        ListTile(
+          leading: Icon(Icons.task),
+          title: Text('Tasks'),
+          onTap: () {
+            Navigator.pop(context); // close drawer
+            // Already on HomeView, so do nothing or pop to root
+          },
+        ),
+        ListTile(
+          leading: Icon(Icons.notes),
+          title: Text('Notes'),
+          onTap: () {
+            Navigator.pop(context); // close drawer
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => NotesHome()),
+            );
+          },
+        ),
+        ListTile(
+          leading: Icon(Icons.task),
+          title: Text('Mood'),
+          onTap: () {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => MoodDetector()),
+            );// close drawer
+            // Already on HomeView, so do nothing or pop to root
+          },
+        ),
+        // Add more ListTiles for other features here
+      ],
+    ),
   );
 
 
