@@ -48,7 +48,7 @@ class _SignupOptionsViewState extends State<SignupOptionsView> {
 
           /// **Sign Up with Google**
           _buildSignUpOption(
-            icon: Image.asset('assets/images/google (2).png', height: 30),
+            icon: Image.asset('assets/images/googlelogo.png', height: 30),
             text: 'Sign up with Google',
             onTap: () async {
               await authservice.handleGoogleButtonClick(context);

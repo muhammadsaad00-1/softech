@@ -3,15 +3,20 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-class VoiceTaskCreation extends StatefulWidget {
+import '../homeview.dart';
+import 'notifications.dart';
+
+class VoiceTaskWidget extends StatefulWidget {
+  const VoiceTaskWidget({super.key});
+
   @override
-  _VoiceTaskCreationState createState() => _VoiceTaskCreationState();
+  _VoiceTaskWidgetState createState() => _VoiceTaskWidgetState();
 }
 
-class _VoiceTaskCreationState extends State<VoiceTaskCreation> {
+class _VoiceTaskWidgetState extends State<VoiceTaskWidget> {
   final stt.SpeechToText _speech = stt.SpeechToText();
+  final TextEditingController _textController = TextEditingController();
   bool _isListening = false;
-  String _recognizedText = '';
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -26,9 +31,9 @@ class _VoiceTaskCreationState extends State<VoiceTaskCreation> {
       onStatus: (status) => print('Status: $status'),
       onError: (error) => print('Error: $error'),
     );
-    if (!available) {
+    if (!available && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Speech recognition not available')),
+        const SnackBar(content: Text('Speech recognition not available')),
       );
     }
   }
@@ -39,11 +44,11 @@ class _VoiceTaskCreationState extends State<VoiceTaskCreation> {
       await _speech.listen(
         onResult: (result) {
           setState(() {
-            _recognizedText = result.recognizedWords;
+            _textController.text = result.recognizedWords;
           });
         },
-        listenFor: Duration(seconds: 30),
-        pauseFor: Duration(seconds: 5),
+        listenFor: const Duration(seconds: 30),
+        pauseFor: const Duration(seconds: 5),
         partialResults: true,
       );
     }
@@ -53,9 +58,6 @@ class _VoiceTaskCreationState extends State<VoiceTaskCreation> {
     if (_isListening) {
       await _speech.stop();
       setState(() => _isListening = false);
-      if (_recognizedText.isNotEmpty) {
-        _createTaskFromSpeech();
-      }
     }
   }
 
@@ -63,7 +65,7 @@ class _VoiceTaskCreationState extends State<VoiceTaskCreation> {
     final user = _auth.currentUser;
     if (user == null) return;
 
-    final parsedTask = _parseSpeechInput(_recognizedText);
+    final parsedTask = _parseSpeechInput(_textController.text);
 
     await _firestore.collection('users').doc(user.uid).collection('tasks').add({
       'title': parsedTask['title'],
@@ -73,72 +75,90 @@ class _VoiceTaskCreationState extends State<VoiceTaskCreation> {
       'isCompleted': false,
     });
 
-    setState(() => _recognizedText = '');
+    setState(() {
+      _textController.clear();
+    });
+    await scheduleNotificationsForTasks();
+    Navigator.push(context, MaterialPageRoute(builder: (context)=> HomeView(emotion: 'normal')));
   }
 
   Map<String, dynamic> _parseSpeechInput(String input) {
-    // Reuse your existing NLU parsing logic here
     final now = DateTime.now();
+    final detectedCategory = _detectCategory(input);
     return {
       'title': input,
-      'dueDate': now.add(Duration(days: 1)),
-      'category': 'general',
+      'dueDate': now.add(const Duration(days: 1)),
+      'category': detectedCategory,
     };
   }
 
+  String _detectCategory(String input) {
+    final keywords = {
+      'Academic': ['study', 'assignment', 'exam', 'class', 'job', 'scholarship'],
+      'Hobby': ['read', 'movie', 'music'],
+      'Personal': ['buy', 'grocery', 'clean', 'wash'],
+      'Health': ['exercise', 'yoga', 'doctor', 'medication'],
+      'Sports': ['basketball', 'football', 'cricket', 'volleyball', 'tennis', 'squash'],
+    };
+
+    for (final entry in keywords.entries) {
+      if (entry.value.any((word) => input.toLowerCase().contains(word))) {
+        return entry.key;
+      }
+    }
+    return 'Miscellaneous';
+  }
+
+  @override
+  void dispose() {
+    _speech.stop();
+    _textController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Voice Task Creation'),
-        backgroundColor: Colors.orange[800],
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Container(
-              padding: EdgeInsets.all(20),
-              child: Text(
-                _recognizedText,
-                style: TextStyle(fontSize: 18),
-              ),
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          child: TextField(
+            controller: _textController,
+            decoration: const InputDecoration(
+              labelText: 'Task Title',
+              border: OutlineInputBorder(),
             ),
           ),
-          VoiceControlButton(
-            isListening: _isListening,
-            startListening: _startListening,
-            stopListening: _stopListening,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class VoiceControlButton extends StatelessWidget {
-  final bool isListening;
-  final VoidCallback startListening;
-  final VoidCallback stopListening;
-
-  const VoiceControlButton({
-    required this.isListening,
-    required this.startListening,
-    required this.stopListening,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 30),
-      child: FloatingActionButton(
-        onPressed: isListening ? stopListening : startListening,
-        backgroundColor: Colors.orange[800],
-        child: Icon(
-          isListening ? Icons.mic_off : Icons.mic,
-          color: Colors.white,
-          size: 32,
         ),
-      ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            FloatingActionButton(
+              onPressed: _isListening ? _stopListening : _startListening,
+              backgroundColor: Colors.orange[800],
+              heroTag: 'micButton',
+              child: Icon(
+                _isListening ? Icons.mic_off : Icons.mic,
+                color: Colors.white,
+                size: 32,
+              ),
+            ),
+            const SizedBox(width: 20),
+            FloatingActionButton(
+              onPressed: _createTaskFromSpeech,
+              backgroundColor: Colors.green[700],
+              heroTag: 'saveButton',
+              child: const Icon(
+                Icons.check,
+                color: Colors.white,
+                size: 32,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 30),
+      ],
     );
   }
 }

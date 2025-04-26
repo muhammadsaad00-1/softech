@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_gemini/flutter_gemini.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import 'package:soft/homeview.dart';
 import 'package:soft/screens/VoiceTaskCreation.dart';
+import '../app_settings.dart';
+import 'notifications.dart';
 
 class TaskCreationScreen extends StatefulWidget {
   @override
@@ -22,7 +27,14 @@ class _TaskCreationScreenState extends State<TaskCreationScreen> {
       final user = _auth.currentUser;
       if (user == null) throw Exception('User not authenticated');
 
-      final parsedTask = _parseNaturalLanguage(input);
+      // First validate and correct the input text
+      final correctedText = await _validateAndCorrectText(input);
+      if (correctedText != input) {
+        _showSnackbar('Task text was corrected: "$correctedText"', Colors.orange);
+        _controller.text = correctedText; // Update the textfield with corrected version
+      }
+
+      final parsedTask = _parseNaturalLanguage(correctedText);
 
       await _firestore.collection('users').doc(user.uid).collection('tasks').add({
         'title': parsedTask['title'],
@@ -34,10 +46,29 @@ class _TaskCreationScreenState extends State<TaskCreationScreen> {
 
       _controller.clear();
       _showSnackbar('Task created successfully!', Colors.green);
+      await scheduleNotificationsForTasks();
     } catch (e) {
       _showSnackbar('Error: ${e.toString()}', Colors.red);
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<String> _validateAndCorrectText(String input) async {
+    try {
+      final prompt = '''
+      Analyze this text for spelling and grammar errors. If the text contains real words 
+      and is correct, return ONLY the exact same text. If there are misspellings or incorrect 
+      words, provide ONLY the corrected version without any explanations or additional text.
+      
+      Text to analyze: "$input"
+      ''';
+
+      final response = await Gemini.instance.text(prompt);
+      return response?.output?.trim() ?? input;
+    } catch (e) {
+      print('Gemini error: $e');
+      return input; // Fallback to original text if error occurs
     }
   }
 
@@ -57,6 +88,12 @@ class _TaskCreationScreenState extends State<TaskCreationScreen> {
   DateTime? _extractDate(String input) {
     final patterns = {
       RegExp(r'tomorrow'): () => DateTime.now().add(Duration(days: 1)),
+      RegExp(r'half an hour'): () => DateTime.now().add(Duration(minutes: 30)),
+      RegExp(r'an hour'): () => DateTime.now().add(Duration(minutes: 60)),
+      RegExp(r'35 minutes'): () => DateTime.now().add(Duration(minutes: 35)),
+
+      RegExp(r'half hour'): () => DateTime.now().add(Duration(minutes: 30)),
+      RegExp(r'two days'): () => DateTime.now().add(Duration(days: 2)),
       RegExp(r'next week'): () => DateTime.now().add(Duration(days: 7)),
       RegExp(r'\b(\d{1,2}/\d{1,2}/\d{4})\b'): (match) =>
           DateFormat('dd/MM/yyyy').parse(match.group(1)!),
@@ -75,7 +112,7 @@ class _TaskCreationScreenState extends State<TaskCreationScreen> {
 
   String _detectCategory(String input) {
     final keywords = {
-      'Academic': ['study', 'assignment', 'exam', 'class'],
+      'Academic': ['study', 'assignment', 'exam', 'class','job','scholarship'],
       'Hobby': ['read','movie','music'],
       'Personal': ['buy', 'grocery', 'clean', 'wash'],
       'Health': ['exercise', 'yoga', 'doctor', 'medication'],
@@ -92,7 +129,7 @@ class _TaskCreationScreenState extends State<TaskCreationScreen> {
 
   String _cleanTaskTitle(String input) {
     return input
-        .replaceAll(RegExp(r'\b(tomorrow|next week|\d{1,2}/\d{1,2}/\d{4})\b'), '')
+        .replaceAll(RegExp(r'\b(day|week|half hour|half an hour| in| hour|tomorrow|next week|\d{1,2}/\d{1,2}/\d{4})\b'), '')
         .trim();
   }
 
@@ -108,13 +145,12 @@ class _TaskCreationScreenState extends State<TaskCreationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<AppSettings>();
+    final isDark = settings.themeMode == ThemeMode.dark;
     return Scaffold(
-      floatingActionButton: FloatingActionButton(onPressed: (){
-        Navigator.push(context, MaterialPageRoute(builder: (context)=>VoiceTaskCreation()));
-      }),
       appBar: AppBar(
-        title: Text('New Task', style: TextStyle(color: Colors.orange)),
-        backgroundColor: Colors.white,
+        title: Text('New Task', style: Theme.of(context).appBarTheme.titleTextStyle),
+
         iconTheme: IconThemeData(color: Colors.white),
       ),
       body: Padding(
@@ -149,11 +185,13 @@ class _TaskCreationScreenState extends State<TaskCreationScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              onPressed: () {
+              onPressed: () async {
                 final input = _controller.text.trim();
-                if (input.isNotEmpty) _createTask(input);
+                if (input.isNotEmpty) await _createTask(input);
+                Navigator.push(context, MaterialPageRoute(builder: (context)=> HomeView(emotion: 'normal')));
               },
             ),
+            VoiceTaskWidget()
           ],
         ),
       ),

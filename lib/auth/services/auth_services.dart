@@ -80,7 +80,7 @@ class AuthService {
     if (userCredential != null) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) =>  HomeView(emotion: "Normal",)),
+        MaterialPageRoute(builder: (context) =>  HomeView(emotion: "normal",)),
       );
     } else {
       log("Failed to create Account");
