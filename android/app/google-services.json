@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "516679825981",
+    "project_id": "softech2025-7b3cd",
+    "storage_bucket": "softech2025-7b3cd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:516679825981:android:a527e41645a6d444c60854",
+        "android_client_info": {
+          "package_name": "com.example.soft"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBK7MQ1lz8uDnM0U9thiUxBGdt-K-mKA8o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

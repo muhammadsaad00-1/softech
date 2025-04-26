@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'Login/initialpage.dart';
 import 'firebase_options.dart';
 import 'homeview.dart';
-
+import 'auth/auth_view_model.dart'; // import your AuthViewModel
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,9 +26,14 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: isLoggedIn ? const HomeView() : const InitialPage(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthViewModel()), // 💥 Added this line
+      ],
+      child: MaterialApp(
+        debugShowCheckedModeBanner: false,
+        home: isLoggedIn ? const HomeView() : const InitialPage(),
+      ),
     );
   }
 }
