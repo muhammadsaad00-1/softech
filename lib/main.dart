@@ -32,7 +32,7 @@ class MyApp extends StatelessWidget {
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        home: isLoggedIn ? const HomeView() : const InitialPage(),
+        home: isLoggedIn ? const HomeView(emotion: "Normal",) : const InitialPage(),
       ),
     );
   }
