@@ -160,7 +160,9 @@ class _HomeViewState extends State<HomeView> {
               }, child: Text("Current Mood")),
             ),
             ListTile(
-              title: Text('ini listnya'),
+              title: TextButton(onPressed: (){
+                Navigator.push(context, MaterialPageRoute(builder: (context)=>HomeView(emotion: "Normal")));
+              }, child: Text("Dashboard")),
             ),
             ListTile(
               title: Text('ini listnya'),

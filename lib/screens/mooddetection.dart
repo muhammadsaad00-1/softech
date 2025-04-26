@@ -11,14 +11,14 @@ class MoodDetector extends StatefulWidget {
 
 class _MoodDetectorState extends State<MoodDetector> {
   final List<String> emojis = [
-    'happy',
-    'sad',
-    'tired',
+    'loving',
     'excited',
-    'angry',
+    'tired',
+    'happy',
     'productive',
+    'angry',
     'lazy',
-    'loving'
+    'sad'
   ];
 
   Drawer customDrawer() => Drawer(
@@ -60,6 +60,7 @@ class _MoodDetectorState extends State<MoodDetector> {
       body: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          Text("Tell us how you currently feel?"),
           SizedBox(
             height: 160, // enough for image + title
             child: ListView.builder(
