@@ -77,7 +77,7 @@ class AuthViewModel with ChangeNotifier {
 
         // Navigate to Home after successful login
         Navigator.pushReplacement(
-            context, MaterialPageRoute(builder: (context) => const HomeView()));
+            context, MaterialPageRoute(builder: (context) => const HomeView(emotion: "Normal")));
 
         return userCredential;
       }
@@ -111,7 +111,7 @@ class AuthViewModel with ChangeNotifier {
 
         notifyListeners();
         Navigator.pushReplacement(
-            context, MaterialPageRoute(builder: (context) =>  HomeView()));
+            context, MaterialPageRoute(builder: (context) =>  HomeView(emotion: "Normal")));
       }
     } catch (e) {
       Utils.snackBar('Signup failed: ${e.toString()}', context);
@@ -169,7 +169,7 @@ class AuthViewModel with ChangeNotifier {
           Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (context) => const HomeView(),
+                builder: (context) => const HomeView(emotion: "Normal"),
               ));
           Utils.snackBar('Logged in successfully', context);
         });

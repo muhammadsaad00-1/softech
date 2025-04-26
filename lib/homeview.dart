@@ -2,10 +2,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:soft/screens/mooddetection.dart';
 import 'package:soft/screens/taskcreation.dart';
 
 class HomeView extends StatefulWidget {
-  const HomeView({super.key});
+  final String emotion;
+  const HomeView({super.key, required this.emotion});
+
 
   @override
   State<HomeView> createState() => _HomeViewState();
@@ -14,6 +17,34 @@ class HomeView extends StatefulWidget {
 class _HomeViewState extends State<HomeView> {
   final user = FirebaseAuth.instance.currentUser;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  List<Map<String, dynamic>> _filterTasksByEmotion(List<Map<String, dynamic>> tasks) {
+    final emotion = widget.emotion.toLowerCase();
+
+    return tasks.where((task) {
+      final category = (task['category'] as String).toLowerCase();
+
+      switch (emotion) {
+        case 'normal':
+          return true;
+        case 'happy':
+          return category == 'hobby';
+        case 'sad':
+          return category == 'health';
+        case 'tired':
+          return category == 'personal' || category == 'hobby';
+        case 'lazy':
+          return category == 'miscellaneous';
+        case 'productive':
+          return category == 'academic';
+        case 'angry':
+          return category == 'sports';
+        default:
+          return true;
+      }
+    }).toList();
+  }
+
 
   Future<List<Map<String, dynamic>>> _fetchTasks() async {
     if (user == null) return [];
@@ -109,22 +140,24 @@ class _HomeViewState extends State<HomeView> {
 
   Color _getCategoryColor(String category) {
     switch (category) {
-      case 'academic':
+      case 'Academic':
         return Colors.blue;
-      case 'personal':
+      case 'Personal':
         return Colors.orange;
-      case 'health':
+      case 'Health':
         return Colors.green;
       default:
         return Colors.purple;
     }
   }
-  Drawer _customDrawer() => Drawer(
+  Drawer customDrawer() => Drawer(
       child: ListView(
           children: <Widget>[
             DrawerHeader(child: Text('Navigation Sidebar')),
             ListTile(
-              title: Text('ini listnya'),
+              title: TextButton(onPressed: (){
+                Navigator.push(context, MaterialPageRoute(builder: (context)=>MoodDetector()));
+              }, child: Text("Current Mood")),
             ),
             ListTile(
               title: Text('ini listnya'),
@@ -156,7 +189,7 @@ class _HomeViewState extends State<HomeView> {
         backgroundColor: Colors.white,
         elevation: 1,
       ),
-      drawer: _customDrawer(),
+      drawer: customDrawer(),
       body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _fetchTasks(),
         builder: (context, snapshot) {
@@ -164,13 +197,15 @@ class _HomeViewState extends State<HomeView> {
             return Center(child: CircularProgressIndicator(color: Colors.orange));
           }
 
-          final tasks = snapshot.data ?? [];
 
-          return tasks.isEmpty
-              ? Center(child: Text('No pending tasks!', style: TextStyle(fontSize: 18)))
+          final tasks = snapshot.data ?? [];
+          final filteredTasks = _filterTasksByEmotion(tasks);
+
+          return filteredTasks.isEmpty
+              ? Center(child: Text('No matching tasks!', style: TextStyle(fontSize: 18)))
               : ListView.builder(
-            itemCount: tasks.length,
-            itemBuilder: (context, index) => _taskItem(tasks[index]),
+            itemCount: filteredTasks.length,
+            itemBuilder: (context, index) => _taskItem(filteredTasks[index]),
           );
         },
       ),
