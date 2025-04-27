@@ -7,16 +7,20 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soft/progressScreen.dart';
 import 'package:soft/screens/calender.dart';
 import 'package:soft/screens/cameraORC.dart';
 import 'package:soft/screens/dailyreport.dart';
 import 'package:soft/screens/goalgenerationscreen.dart';
 import 'package:soft/screens/mooddetection.dart';
+import 'package:soft/screens/notification_center.dart';
 import 'package:soft/screens/notifications.dart';
 import 'package:soft/screens/taskcreation.dart';
 import 'package:soft/settings_screen.dart';
 
+import 'Login/initialpage.dart';
 import 'app_settings.dart';
+import 'auth/utils.dart';
 import 'notes_home.dart';
 
 class HomeView extends StatefulWidget {
@@ -31,6 +35,8 @@ class HomeView extends StatefulWidget {
 class _HomeViewState extends State<HomeView> {
   final user = FirebaseAuth.instance.currentUser;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final _auth = FirebaseAuth.instance;
+  User? user1;
 
   final List<String> affirmations = [
     "You have the power to create change.",
@@ -127,6 +133,149 @@ class _HomeViewState extends State<HomeView> {
       }
     }).toList();
   }
+  void _showTaskDetails(BuildContext context, Map<String, dynamic> task) async {
+    final List<Map<String, dynamic>> subtasks = await _fetchSubtasks(task['id']);
+    final TextEditingController _descriptionController = TextEditingController(text: task['description'] ?? '');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Allows the sheet to take full height when needed
+      builder: (context) => Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  task['title'],
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 22
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(Icons.edit, color: Colors.orange),
+                  onPressed: () => _showEditTaskDialog(context, task),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+
+            // Category Chip
+            Chip(
+              backgroundColor: getCategoryLightColor(task['category']),
+              label: Text(
+                task['category'],
+                style: TextStyle(color: _getCategoryColor(task['category'])),
+              ),
+            ),
+            SizedBox(height: 16),
+
+            // Due Date with Calendar Button
+            Row(
+              children: [
+                Icon(Icons.calendar_today, size: 20, color: Colors.grey),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                      'Due: ${DateFormat('MMM dd, yyyy – hh:mm a').format(task['dueDate'])}',
+                      style: TextStyle(fontSize: 14)
+                  ),
+                ),
+                TextButton(
+                  child: Text('Change Date', style: TextStyle(color: Colors.orange)),
+                  onPressed: () => _selectNewDate(context, task),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+
+            // Description Section
+            if (task['description'] != null && task['description'].toString().isNotEmpty) ...[
+              _DetailRow(Icons.description, 'Description:'),
+              Container(
+                padding: EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).cardColor,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  task['description'],
+                  style: TextStyle(fontSize: 14),
+                ),
+              ),
+              SizedBox(height: 16),
+            ],
+
+            // Subtasks Section
+            if (subtasks.isNotEmpty) ...[
+              Text('Subtasks:', style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).textTheme.titleLarge?.color,
+              )),
+              SizedBox(height: 10),
+              ...subtasks.map((subtask) => Card(
+                margin: EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  leading: Checkbox(
+                    value: subtask['isCompleted'] == true,
+                    onChanged: (value) => _toggleSubtaskCompletion(
+                        task['id'], subtask['id'], subtask['isCompleted'] ?? false),
+                    activeColor: Colors.orange,
+                  ),
+                  title: Text(
+                    subtask['subtaskTitle'] ?? 'No Title',
+                    style: TextStyle(
+                      decoration: subtask['isCompleted'] == true
+                          ? TextDecoration.lineThrough
+                          : null,
+                    ),
+                  ),
+                ),
+              )),
+            ],
+
+            // Action Buttons
+            SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  icon: Icon(Icons.delete, size: 20),
+                  label: Text('Delete'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade100,
+                    foregroundColor: Colors.red,
+                  ),
+                  onPressed: () => _deleteTask(task['id']),
+                ),
+                ElevatedButton.icon(
+                  icon: Icon(Icons.done_all, size: 20),
+                  label: Text('Mark Complete'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade100,
+                    foregroundColor: Colors.green,
+                  ),
+                  onPressed: () {
+                    _toggleTaskCompletion(task['id'], task['isCompleted']);
+                    Navigator.pop(context);
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
 
   Future<List<Map<String, dynamic>>> _fetchTasks() async {
@@ -148,6 +297,39 @@ class _HomeViewState extends State<HomeView> {
       };
     }).toList();
   }
+  Future<void> _selectNewDate(BuildContext context, Map<String, dynamic> task) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: task['dueDate'],
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2101),
+    );
+
+    if (picked != null) {
+      final TimeOfDay? time = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(task['dueDate']),
+      );
+
+      if (time != null) {
+        final newDateTime = DateTime(
+            picked.year, picked.month, picked.day,
+            time.hour, time.minute
+        );
+
+        await _firestore
+            .collection('users')
+            .doc(user!.uid)
+            .collection('tasks')
+            .doc(task['id'])
+            .update({'dueDate': newDateTime});
+
+        setState(() {});
+        Navigator.pop(context); // Close the bottom sheet
+        _showTaskDetails(context, task); // Reopen with updated data
+      }
+    }
+  }
 
 
 
@@ -163,62 +345,70 @@ class _HomeViewState extends State<HomeView> {
 
     setState(() {}); // Refresh UI
   }
+  Future<void> _deleteTask(String taskId) async {
+    await _firestore
+        .collection('users')
+        .doc(user!.uid)
+        .collection('tasks')
+        .doc(taskId)
+        .delete();
+    setState(() {});
+    Navigator.pop(context); // Close the bottom sheet
+  }
+  Future<void> _showEditTaskDialog(BuildContext context, Map<String, dynamic> task) async {
+    final TextEditingController _titleController = TextEditingController(text: task['title']);
+    final TextEditingController _descController = TextEditingController(text: task['description'] ?? '');
 
-  void _showTaskDetails(BuildContext context, Map<String, dynamic> task) async {
-    final List<Map<String, dynamic>> subtasks = await _fetchSubtasks(task['id']);
-
-    showModalBottomSheet(
+    await showDialog(
       context: context,
-      builder: (context) => Container(
-        padding: EdgeInsets.all(16),
-        child: SingleChildScrollView(
+      builder: (context) => AlertDialog(
+        title: Text('Edit Task'),
+        content: SingleChildScrollView(
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(task['title'], style: Theme.of(context).textTheme.titleLarge),
-              SizedBox(height: 10),
-              _DetailRow(Icons.category, 'Category: ${task['category']}'),
-              _DetailRow(Icons.calendar_today,
-                  'Due: ${DateFormat('MMM dd, yyyy – hh:mm a').format(task['dueDate'])}'),
-              if (task['description'] != null && task['description'].toString().isNotEmpty)
-                _DetailRow(Icons.description, task['description']),
-
-              if (subtasks.isNotEmpty) ...[
-                SizedBox(height: 20),
-                Text('Subtasks:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                SizedBox(height: 10),
-                ...subtasks.map((subtask) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: GestureDetector(
-                    onTap: () => _toggleSubtaskCompletion(task['id'], subtask['id'], subtask['isCompleted'] ?? false),
-                    child: Row(
-                      children: [
-                        Icon(
-                          subtask['isCompleted'] == true
-                              ? Icons.check_box
-                              : Icons.check_box_outline_blank,
-                          size: 18,
-                          color: Colors.orange,
-                        ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            subtask['subtaskTitle'] ?? 'No Title',
-                            style: TextStyle(fontSize: 14),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                )),
-              ],
+              TextField(
+                controller: _titleController,
+                decoration: InputDecoration(labelText: 'Task Title'),
+              ),
+              SizedBox(height: 16),
+              TextField(
+                controller: _descController,
+                decoration: InputDecoration(labelText: 'Description'),
+                maxLines: 3,
+              ),
             ],
           ),
         ),
+        actions: [
+          TextButton(
+            child: Text('Cancel'),
+            onPressed: () => Navigator.pop(context),
+          ),
+          ElevatedButton(
+            child: Text('Save'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            onPressed: () async {
+              await _firestore
+                  .collection('users')
+                  .doc(user!.uid)
+                  .collection('tasks')
+                  .doc(task['id'])
+                  .update({
+                'title': _titleController.text,
+                'description': _descController.text,
+              });
+              setState(() {});
+              Navigator.pop(context); // Close dialog
+              Navigator.pop(context); // Close bottom sheet
+              _showTaskDetails(context, task); // Reopen with updated data
+            },
+          ),
+        ],
       ),
     );
   }
+
   Future<List<Map<String, dynamic>>> _fetchSubtasks(String taskId) async {
     if (user == null) return [];
 
@@ -253,9 +443,26 @@ class _HomeViewState extends State<HomeView> {
 
     setState(() {}); // Refresh UI
   }
+  Color getCategoryLightColor(String category) {
+    switch (category) {
+      case 'Academic':
+        return Colors.blue.shade100;
+      case 'Personal':
+        return Colors.orange.shade100;
+      case 'Health':
+        return Colors.green.shade100;
+      case 'Sports':
+        return Colors.red.shade100;
+      case 'Hobby':
+        return Colors.purple.shade100;
+      default:
+        return Colors.grey.shade100;
+    }
+  }
 
   Widget _taskItem(Map<String, dynamic> task) => Card(
     elevation: 2,
+    color: getCategoryLightColor(task['category']),
     margin: EdgeInsets.symmetric(vertical: 6, horizontal: 12),
     child: ListTile(
       contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -302,24 +509,37 @@ class _HomeViewState extends State<HomeView> {
       default:
         return Colors.purple;
     }
+
+
+
   }
   Drawer customDrawer() => Drawer(
     child: ListView(
       children: <Widget>[
-        DrawerHeader(child: Text('Navigation Sidebar')),
+        DrawerHeader(
+          child: Padding(
+            padding: EdgeInsets.all(15.0),
+            child: Row(
+              children: [
+                Image.asset("assets/images/logo.png",height: 50,width: 50),
+                SizedBox(width: 20,),
+                Center(child: Text('Moody Partner', style: TextStyle(fontSize: 18,fontWeight: FontWeight.w500),)),
+              ],
+            ),
+          ),
+        ),
         ListTile(
           leading: Icon(Icons.task),
           title: Text('Tasks'),
           onTap: () {
-            Navigator.pop(context); // close drawer
-            // Already on HomeView, so do nothing or pop to root
+            Navigator.pop(context);
           },
         ),
         ListTile(
           leading: Icon(Icons.notes),
           title: Text('Notes'),
           onTap: () {
-            Navigator.pop(context); // close drawer
+            Navigator.pop(context);
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => NotesHome()),
@@ -334,8 +554,7 @@ class _HomeViewState extends State<HomeView> {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => MoodDetector()),
-            );// close drawer
-            // Already on HomeView, so do nothing or pop to root
+            );
           },
         ),
         ListTile(
@@ -346,8 +565,7 @@ class _HomeViewState extends State<HomeView> {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => GoalGenerationScreen()),
-            );// close drawer
-            // Already on HomeView, so do nothing or pop to root
+            );
           },
         ),
         ListTile(
@@ -358,33 +576,19 @@ class _HomeViewState extends State<HomeView> {
             Navigator.pop(context);
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => CameraOCRScreen(cameras: (cameras))),
+              MaterialPageRoute(builder: (context) => CameraOCRScreen(cameras: cameras)),
             );
-            ListTile(
-              leading: Icon(Icons.mood),
-              title: Text('Mood Journal'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => MoodDetector()),
-                );
-              },
-            )
-            ;// close drawer
-            // Already on HomeView, so do nothing or pop to root
           },
         ),
         ListTile(
           leading: Icon(Icons.calendar_month),
-          title: Text('Calender'),
+          title: Text('Calendar'),
           onTap: () {
             Navigator.pop(context);
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => CalendarScreen()),
-            );// close drawer
-            // Already on HomeView, so do nothing or pop to root
+            );
           },
         ),
         ListTile(
@@ -395,15 +599,32 @@ class _HomeViewState extends State<HomeView> {
             Navigator.push(
               context,
               MaterialPageRoute(builder: (context) => RecentTasksScreen()),
-            );// close drawer
-            // Already on HomeView, so do nothing or pop to root
+            );
+          },
+        ),
+        ListTile(
+          leading: Icon(Icons.show_chart),
+          title: Text('Progress Tracker'),
+          onTap: () {
+            final user = FirebaseAuth.instance.currentUser;
+            if (user != null) {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ProgressScreen(userId: user.uid)),
+              );
+            } else {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Please log in to view progress tracker')),
+              );
+            }
           },
         ),
         // Add more ListTiles for other features here
       ],
     ),
   );
-
 
   @override
   Widget build(BuildContext context) {
@@ -437,6 +658,29 @@ class _HomeViewState extends State<HomeView> {
                 );
               },
             ),
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () async {
+                try {
+                  await _auth.signOut();
+                  SharedPreferences prefs = await SharedPreferences.getInstance();
+                  await prefs.setBool('isLoggedIn', false);
+                  user1 = null;
+                  Navigator.push(context, MaterialPageRoute(builder: (context)=> InitialPage()));
+                } catch (e) {
+                  Utils.snackBar('Logout failed: ${e.toString()}', context);
+                }
+              },
+            ),
+            IconButton(
+              icon:  Icon(Icons.notification_add),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => NotificationCenterScreen()),
+                );
+              },
+            ),
           ],
         ),
         drawer: customDrawer(),
@@ -453,6 +697,7 @@ class _HomeViewState extends State<HomeView> {
             return filteredTasks.isEmpty
                 ? Center(child: Text('No matching tasks!', style: TextStyle(fontSize: 18)))
                 : ListView.builder(
+
               itemCount: filteredTasks.length,
               itemBuilder: (context, index) => _taskItem(filteredTasks[index]),
             );

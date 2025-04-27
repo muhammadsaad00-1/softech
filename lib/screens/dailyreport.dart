@@ -2,7 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:soft/Login/initialpage.dart';
+import 'package:soft/auth/auth_view_model.dart';
 import 'package:soft/mood_model.dart';
+
+import '../auth/utils.dart';
 
 class RecentTasksScreen extends StatefulWidget {
   const RecentTasksScreen({Key? key}) : super(key: key);
@@ -14,6 +19,8 @@ class RecentTasksScreen extends StatefulWidget {
 class _RecentTasksScreenState extends State<RecentTasksScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  User? user;
+
 
   Future<void> _toggleTaskCompletion(String taskId, bool currentStatus) async {
     try {
@@ -142,6 +149,22 @@ class _RecentTasksScreenState extends State<RecentTasksScreen> {
       appBar: AppBar(
         title: const Text('Today'),
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () async {
+              try {
+                await _auth.signOut();
+                SharedPreferences prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('isLoggedIn', false);
+                user = null;
+                Navigator.push(context, MaterialPageRoute(builder: (context)=> InitialPage()));
+              } catch (e) {
+                Utils.snackBar('Logout failed: ${e.toString()}', context);
+              }
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

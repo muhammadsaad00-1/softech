@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../Login/initialpage.dart';
 import '../homeview.dart';
 import 'authRepo.dart';
 import 'utils.dart';
@@ -195,7 +196,7 @@ class AuthViewModel with ChangeNotifier {
       await prefs.setBool('isLoggedIn', false);
       _user = null;
       notifyListeners();
-      Navigator.pushReplacementNamed(context, '/initial');
+      Navigator.push(context, MaterialPageRoute(builder: (context)=> InitialPage()));
     } catch (e) {
       Utils.snackBar('Logout failed: ${e.toString()}', context);
     }
